@@ -29,3 +29,12 @@ dependencies {
     testImplementation 'junit:junit:4.12'
 }
 
+test {
+   afterTest { desc, result -> 
+        logger.quiet "Executing test ${desc.name} [${desc.className}] with result: ${result.resultType}"
+    }
+    reports {
+        junitXml.enabled = true
+        html.enabled = true
+    }               
+}
