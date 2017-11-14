@@ -12,6 +12,7 @@ public class CalculatorTest {
         assertEquals(7,calc.add(3,4));
     }
 	//test cases
+	//test case
 	@Test public void testmul() {
          Calculator calc = new Calculator();
         
