@@ -13,6 +13,7 @@ public class CalculatorTest {
     }
 	//test cases
 	//test case
+	//test case
 	@Test public void testmul() {
          Calculator calc = new Calculator();
         
