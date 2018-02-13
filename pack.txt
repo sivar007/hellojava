@@ -1,0 +1,2124 @@
+create or replace PACKAGE BODY                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         "BRIDGEPKG"
+IS
+--
+-- To modify this template, edit file PKGBODY.TXT in TEMPLATE
+-- directory of SQL Navigator
+--
+-- Purpose: Briefly explain the functionality of the package body
+--
+-- MODIFICATION HISTORY
+-- Person      Date    Comments
+-- ---------   ------  ------------------------------------------
+   -- Enter procedure, function bodies as shown below
+
+   PROCEDURE ins_user
+    ( p_personid IN  USERS.f_person_id%type ,
+      p_role IN USERS.role%type )
+    IS
+        v_count NUMBER NOT NULL DEFAULT 0;
+   BEGIN
+       DELETE FROM USERS WHERE f_person_id = p_personid;
+
+       INSERT INTO USERS
+       (f_person_ID, USERS.role)
+       VALUES(p_personID,p_role);
+
+   END;
+
+    PROCEDURE upd_user
+   ( p_personid IN users.f_person_id%type,
+     p_role IN USERS.role%type)
+   IS
+   BEGIN
+     UPDATE USERS
+        SET users.role=p_role
+        WHERE f_person_id = p_personid;
+   END;
+
+    --Takes in hscid and outputs its role.
+    PROCEDURE verify_user
+    ( p_personid IN hsc.sd_hsc_directory.hscid%type,
+      r_res OUT users.role%type)
+      IS
+       v_count INTEGER not NULL DEFAULT 0;
+       v_personID hsc.sd_hsc_directory.person_id%type;
+      BEGIN
+        r_res := '0';
+
+        SELECT person_id into v_personID
+        FROM hsc.sd_hsc_directory
+            WHERE hscid=p_personid;
+
+        SELECT COUNT(*) INTO v_count FROM USERS
+        WHERE f_person_id=v_personID;
+
+        if(v_count>0)
+        THEN
+           SELECT Role INTO r_res FROM USers
+            WHERE f_person_id=v_personID and rownum=1;
+        END IF;
+      END;
+
+    PROCEDURE get_users
+    ( r_res OUT SYS_REFCURSOR )
+    IS
+    BEGIN
+      OPEN r_res FOR
+      SELECT a.*,
+             b.first_name fname,
+             b.last_name lname,
+             b.hscid
+      FROM USERS a, hsc.sd_hsc_directory b
+         WHERE a.f_person_id = b.person_id;
+    END;
+
+    PROCEDURE del_user
+    ( p_personid IN users.f_person_id%type)
+    IS
+    BEGIN
+     DELETE FROM USERS WHERE f_person_id=p_personid;
+    END;
+
+    PROCEDURE get_user
+    ( p_personid IN users.f_person_id%type,
+      r_res OUT SYS_REFCURSOR)
+    IS
+    BEGIN
+      OPEN r_res FOR
+        SELECT f_person_id,role
+        FROM users
+        WHERE f_person_id=p_personid;
+    END;
+
+    PROCEDURE get_elligible_admins
+    ( r_res OUT SYS_REFCURSOR)
+    IS
+    BEGIN
+      OPEN r_res FOR
+        SELECT f_personID FROM volunteers
+        WHERE not f_personid is null;
+    END;
+
+    PROCEDURE get_userid
+    ( p_personid IN hsc.sd_hsc_directory.person_id%type,
+      r_res OUT hsc.sd_hsc_directory.hscid%type)
+    IS
+    BEGIN
+      SELECT hscid INTO r_res
+      FROM hsc.sd_hsc_directory
+      WHERE person_id=p_personid;
+    END;
+
+
+    PROCEDURE get_sched_dates
+    ( r_res OUT SYS_REFCURSOR)
+    IS
+    BEGIN
+        OPEN r_res FOR
+            SELECT * FROM
+              (SELECT *
+               FROM SCHEDULE
+               ORDER BY SCHEDDATE DESC)
+               WHERE ROWNUM < 50;
+    END;
+
+    PROCEDURE get_new_sched_dates
+    ( r_res OUT SYS_REFCURSOR)
+    IS
+    BEGIN
+      OPEN r_res FOR
+        SELECT * FROM
+          (SELECT *
+           FROM schedule
+           WHERE schedDate >= trunc(SYSDate)
+           ORDER BY SCHEDDATE ASC)
+        WHERE ROWNUM < 50;
+    END;
+
+
+    PROCEDURE get_sched_date
+    ( p_id IN schedule.schedule_id%type,
+      r_res OUT SYS_REFCURSOR)
+    IS
+    BEGIN
+      OPEN r_res FOR
+        SELECT * --schedule_id,schedDate,specialty,notes
+        FROM schedule
+        WHERE schedule_id=p_id;
+    END;
+
+    PROCEDURE get_sched_date2
+    ( p_id IN schedule.schedule_id%type,
+      r_res OUT SYS_REFCURSOR)
+    IS
+    BEGIN
+      OPEN r_res FOR
+        SELECT * --schedule_id,schedDate,specialty,notes
+        FROM schedule
+        WHERE schedule_id=p_id;
+    END;
+
+
+
+    PROCEDURE ins_sched_date
+    ( p_date IN schedule.scheddate%type,
+      p_specialty IN schedule.specialty%type,
+      p_notes IN schedule.notes%type,
+     r_res OUT schedule.schedule_id%type)
+    IS
+      cursor descur is SELECT designations_id,vlimit FROM designations;
+    BEGIN
+        r_res := 0;
+
+        INSERT INTO SCHEDULE (schedule_ID,scheddate,specialty,notes)
+        VALUES(schedule_id_seq.NEXTVAL,p_date,p_specialty,p_notes);
+
+        for parent_rec in descur
+        LOOP
+           INSERT INTO schd_designations
+             (f_schedule_id,f_designation_ID,limit)
+             VALUES(schedule_id_seq.CURRVAL,parent_rec.designations_id,parent_rec.vlimit);
+        END LOOP;
+
+        SELECT schedule_id_seq.CURRVAL INTO r_res FROM dual;
+    END;
+
+    PROCEDURE upd_sched_date
+    ( p_id IN schedule.schedule_id%type,
+      p_date IN schedule.scheddate%type,
+      p_specialty IN schedule.specialty%type,
+      p_notes IN schedule.notes%type,
+     r_res OUT INTEGER)
+     IS
+       V_count INTEGER NOT NULL DEFAULT 0;
+     BEGIN
+       r_res:=0;
+       SELECT COUNT(*) INTO v_count FROM schedule
+       WHERE schedule_id=p_id;
+       if(v_count > 0)
+       THEN
+            UPDATE schedule
+            SET schedDate=p_date,
+                specialty=p_specialty,
+                notes=p_notes
+            WHERE schedule_id=p_id;
+            r_res:=1;
+       END IF;
+    END;
+
+    PROCEDURE del_sched_date2
+    ( p_id IN schedule.schedule_id%type,
+      r_res OUT NUMBER)
+    IS
+      v_count NUMBER NOT NULL DEFAULT 0;
+    BEGIN
+      r_res:=0;
+      SELECT COUNT(*) INTO v_count
+      FROM schedule WHERE schedule_id=p_id;
+      if(v_count>0)
+      THEN
+        DELETE FROM schedule
+        WHERE schedule_id=p_id;
+
+        r_res:=1;
+
+        DELETE FROM schd_volunteers
+        WHERE f_schedule_id=p_id;
+
+        DELETE FROM schd_designations
+        WHERE f_schedule_id=p_id;
+      END IF;
+    END;
+
+
+
+    PROCEDURE del_sched_volunteer2
+    ( p_sched_id IN schd_volunteers.f_schedule_id%type,
+      p_vol_id IN schd_volunteers.f_volunteer_id%type)
+    IS
+    BEGIN
+
+      --email_alternate(p_sched_id=>p_sched_id,p_vol_id=>p_vol_id);
+
+      --delete the volunteer
+      DELETE FROM schd_volunteers
+      WHERE f_schedule_id=p_sched_id
+      AND f_volunteer_id=p_vol_id;
+
+    END;
+
+    PROCEDURE email_alternate
+    ( p_sched_id IN schedule.schedule_id%type,
+      p_vol_id IN schedule.schedule_id%type)
+    IS
+      v_schedule_limit schd_designations.limit%type;
+      v_scheduled_vol NUMBER;
+      v_schedule_des Designations.designations_id%type;
+      v_fname volunteers_vw.fname%type;
+      v_lname volunteers_vw.lname%type;
+      v_email volunteers_vw.email%type;
+      v_msg utl_smtp.connection;
+      v_des_name designations.full_name%type;
+      v_schd_time schedule.scheddate%type;
+      v_alt_count NUMBER;
+    BEGIN
+      --get the designation id
+      SELECT f_designation_id INTO v_schedule_des
+      FROM schd_volunteers
+      WHERE f_schedule_id=p_sched_id
+      AND f_volunteer_id=p_vol_id;
+
+      --Get the limit of the designation
+      SELECT schd_designations.limit INTO v_schedule_limit
+      FROM schd_designations
+      WHERE f_schedule_id = p_sched_id
+       AND f_designation_id = v_schedule_des;
+
+      --Find out if alternate is deleting, no e-mail then
+      SELECT COUNT(*) INTO v_alt_count
+      FROM (SELECT a.*,rownum rnum
+            FROM (SELECT * FROM schd_volunteers
+              WHERE f_schedule_id = p_sched_id
+                AND f_designation_id = v_schedule_des
+                ORDER BY schd_volunteers.schd_volunteer_id) a)
+      WHERE rnum > v_schedule_limit
+        and f_volunteer_id = p_vol_id;
+
+      --check if alternate has been moved into primary place, email them
+      --Count scheduled volunteers of specified designation
+      SELECT COUNT(*) INTO v_scheduled_vol
+      FROM schd_volunteers
+      WHERE f_schedule_id=p_sched_id
+        AND schd_volunteers.f_designation_id = v_schedule_des;
+
+      --if limit >= volunteer count, then email last one because they are alternate moved into place.
+      if(v_alt_count < 1 and v_schedule_limit < v_scheduled_vol)
+      THEN
+        --get designation name
+        SELECT full_name INTO v_des_name
+        FROM designations
+        WHERE designations_id = v_schedule_des;
+
+        --get schedule date
+        SELECT schedDate INTO v_schd_time
+        FROM schedule
+        WHERE schedule_id = p_sched_id;
+
+        --get the person moved in from over limit to limit, alternate->actual
+        SELECT fname,lname,email INTO v_fname,v_lname,v_email
+        FROM volunteers_vw
+        WHERE volunteer_id = (SELECT f_volunteer_id
+                              FROM (select a.*,rownum rnum
+                                    FROM (select * FROM schd_volunteers
+                                    WHERE f_schedule_id = p_sched_id
+                                      AND f_designation_id = v_schedule_des
+                                    ORDER BY schd_volunteer_id) a)
+                               WHERE rnum =  v_schedule_limit+1);
+        if(is_on_production()=1)
+        THEN
+          v_msg := hsc.hit_util.open_mail(c_email_from,
+                                       v_email,
+                                       'You have been upgraded from Alternate');
+        ELSE
+          v_msg := hsc.hit_util.open_mail(c_email_from,
+                                       c_admin_email,
+                                       'You have been upgraded from Alternate');
+          hsc.hit_util.write_mail(v_msg,'FROM DB '||hsc.hit_util.get_local_dbinstance||UTL_TCP.CRLF);
+        hsc.hit_util.write_mail(v_msg,'The following message is what should be sent to email:'||v_email||UTL_TCP.CRLF);
+        END IF;
+          hsc.hit_util.write_mail(v_msg,c_msg_dnr);
+          hsc.hit_util.write_mail(v_msg,'Dear '||v_fname||' '||v_lname||','||UTL_TCP.CRLF||UTL_TCP.CRLF);
+          hsc.hit_util.write_mail(v_msg,'  Because a scheduled volunteer has cancelled or was removed from the schedule as '||v_des_name||' for Bridge Clinic on '||to_char(v_schd_time,'Day, Month DD, YYYY.')||' you have been made a primary volunteer for that date.');
+          hsc.hit_util.write_mail(v_msg,UTL_TCP.CRLF||UTL_TCP.CRLF||'Thank You'||UTL_TCP.CRLF||'Bridge Clinic Admin');
+          hsc.hit_util.close_mail(v_msg);
+
+      END if;
+    END email_alternate;
+
+
+    PROCEDURE ins_sched_volunteer2
+    ( p_sched_id IN schd_volunteers.f_schedule_id%type,
+      p_vol_id IN schd_volunteers.f_volunteer_id%type,
+      p_des_id IN schd_volunteers.f_designation_id%type,
+      r_res OUT NUMBER)
+    IS
+      v_count NUMBER NOT NULL DEFAULT 0;
+      v_date schedule.scheddate%type;
+      v_check_reg NUMBER NOT NULL DEFAULT 0;
+      v_total_no_of_events NUMBER NOT NULL DEFAULT 0;
+      v_check_reg_res NUMBER NOT NULL DEFAULT 0; 
+      v_scheduleMonthYear VARCHAR2(9 CHAR);
+    BEGIN
+      r_res:=0;
+      v_total_no_of_events:=0;
+       -- fetching the month and year for which user is registering
+      SELECT scheddate, to_char(scheddate,'MON-YY')into v_date,v_scheduleMonthYear
+      FROM schedule
+      WHERE schedule_id=p_sched_id;
+          
+          -- checking the designation of volunteer ( MS1/2 = 100,Interpreter = 114) 
+      IF (p_des_id = 100 or p_des_id = 114) then 
+          for parent_i in (SELECT schedule_id
+                             FROM schedule
+                             WHERE to_char( scheddate, 'MON-YY' )=v_scheduleMonthYear)
+         LOOP
+           select COUNT(*) into v_check_reg
+           FROM schd_volunteers
+           WHERE f_schedule_id = parent_i.schedule_id
+           AND f_volunteer_id = p_vol_id;
+            
+           if(v_check_reg > 0)
+            then
+              v_total_no_of_events :=v_total_no_of_events+v_check_reg;
+           end if;  
+          END LOOP;
+      
+           if(v_total_no_of_events >= 2)
+            THEN
+             v_check_reg_res:=1;
+           end if;
+       END IF;
+
+
+     IF v_check_reg_res = 0 then
+         --LOOP THROUGH ALL SCHEDULE DATES OF SAME DAY
+       FOR parent_rec in (SELECT schedule_id
+                             FROM schedule
+                             WHERE scheddate=v_date)
+       LOOP
+         select COUNT(*) into v_count
+         FROM schd_volunteers
+         WHERE f_schedule_id = parent_rec.schedule_id
+         AND f_volunteer_id = p_vol_id;
+         if(v_count > 0)
+           THEN
+          return;
+         end if;
+        END LOOP;
+
+        --now volunteer is ok to add to schedule
+
+
+      --SELECT count(*) into v_count FROM schd_volunteers
+      --WHERE f_schedule_id = p_sched_id
+
+      --run a check to see if this compination of volunteer, designation and schedule already exist.
+        select count(*) into v_count
+        from schd_volunteers
+        where f_schedule_id = p_sched_id
+        and f_volunteer_id = p_vol_id
+        and f_designation_Id = p_des_id;
+
+      --if it does, no need to do the insert..just return back the existing schd_volunteer_id and return
+      
+        if v_count > 0 then
+         select schd_volunteer_id into r_res
+         from schd_volunteers
+         where f_schedule_id = p_sched_id
+         and f_volunteer_id = p_vol_id
+         and f_designation_Id = p_des_id;
+         return;
+        end if;
+
+       INSERT INTO schd_volunteers (schd_volunteer_id,f_schedule_id,f_volunteer_id,f_designation_id)
+       VALUES (schd_volunteer_id_seq.NEXTVAL,p_sched_id,p_vol_id, p_des_id);
+
+       SELECT schd_volunteer_id_seq.CURRVAL INTO r_res FROM dual;
+     ELSE 
+        r_res:= 3;
+     END IF;
+    
+     END;
+
+
+    PROCEDURE ins_volunteer
+    ( p_personid IN volunteers.f_personid%type,
+      p_consent IN volunteers.contactconsent%type,
+      p_span IN volunteers.spk_spanish%type,
+      p_phon IN volunteers.phone%type,
+      p_emal IN volunteers.email%type,
+      p_affi IN volunteers.f_affiliation_id%type,
+      p_spec IN volunteers.specialty%type,
+      p_lang IN volunteers.languages%type,
+      p_gryr IN volunteers.gradyear%type,
+      p_fname IN vol_info.fname%type,
+      p_lname IN vol_info.lname%type,
+      r_res OUT INTEGER)
+    IS
+      v_count NUMBER NOT NULL DEFAULT 0;
+      v_emal volunteers.email%type;
+      v_msg utl_smtp.connection;
+      v_fname VARCHAR2(30);
+      v_lname VARCHAR2(50);
+    BEGIN
+        r_res:=0;
+
+        v_emal := trim(p_emal);
+
+        --make sure that e-mail is unique
+        SELECT COUNT(*) into v_count from volunteers
+        WHERE email = v_emal;
+        if(v_count>0)
+        THEN
+          RETURN;
+        END IF;
+
+        INSERT INTO VOLUNTEERS (volunteer_id,
+                                f_personid,
+                                contactconsent,
+                                spk_spanish,
+                                phone,
+                                email,
+                                f_affiliation_id,
+                                specialty,
+                                languages,
+                                gradyear)
+        VALUES(volunteer_id_seq.NEXTVAL,
+               p_personid,
+               p_consent,
+               p_span,
+               p_phon,
+               v_emal,
+               p_affi,
+               p_spec,
+               p_lang,
+               p_gryr);
+        --return the new id
+        SELECT volunteer_id_seq.CURRVAL INTO r_res FROM dual;
+
+
+        if p_personid is null or length(p_personid) = 0 then
+            INSERT INTO vol_info (f_volunteer_id,fname,lname)
+            VALUES(r_res,p_fname,p_lname);
+            v_fname := p_fname;
+            v_lname := p_lname;
+        else
+            select first_name, last_name into v_fname, v_lname
+            from hsc.sd_hsc_directory
+            where person_id = p_personid;
+        end if;
+
+
+        if(is_on_production()=1)
+        THEN
+          v_msg := hsc.hit_util.open_mail(c_email_from,
+                                       p_emal,
+                                       'BRIDGE Clinic Volunteer Registration');
+        ELSE
+          v_msg := hsc.hit_util.open_mail(c_email_from,
+                                       c_admin_email,
+                                       'BRIDGE Clinic Volunteer Registration');
+          hsc.hit_util.write_mail(v_msg,'FROM DB '||hsc.hit_util.get_local_dbinstance||UTL_TCP.CRLF);
+        hsc.hit_util.write_mail(v_msg,'The following message is what should be sent to email:'||p_emal||UTL_TCP.CRLF);
+        END IF;
+          hsc.hit_util.write_mail(v_msg,c_msg_dnr);
+          hsc.hit_util.write_mail(v_msg,'Dear '||v_fname||' '||v_lname||','||UTL_TCP.CRLF||UTL_TCP.CRLF);
+          hsc.hit_util.write_mail(v_msg,'You have successfully registered as a volunteer for the BRIDGE clinic.'||UTL_TCP.CRLF||UTL_TCP.CRLF);
+          hsc.hit_util.write_mail(v_msg,'You will begin receiving scheduling notifications from this e-mail address.');
+          hsc.hit_util.write_mail(v_msg,UTL_TCP.CRLF||UTL_TCP.CRLF||'Thank You'||UTL_TCP.CRLF||'Bridge Clinic Admin');
+          hsc.hit_util.close_mail(v_msg);
+    END;
+
+    PROCEDURE upd_volunteer
+    ( p_vol_id IN volunteers.volunteer_id%type,
+      p_personid IN volunteers.f_personid%type,
+      p_consent IN volunteers.contactconsent%type,
+      p_span IN volunteers.spk_spanish%type,
+      p_phon IN volunteers.phone%type,
+      p_emal IN volunteers.email%type,
+      p_affi IN volunteers.f_affiliation_id%type,
+      p_spec IN volunteers.specialty%type,
+      p_lang IN volunteers.languages%type,
+      p_gryr IN volunteers.gradyear%type,
+      r_res OUT INTEGER)
+    IS
+      v_count INTEGER NOT NULL DEFAULT 0;
+      v_emal volunteers.email%type;
+    BEGIN
+      r_res:=0;
+
+      v_emal := trim(p_emal);
+
+      --Verify unique email
+      SELECT COUNT(*) INTO v_count FROM VOLUNTEERS
+      WHERE email=v_emal and volunteer_id <> p_vol_id;
+
+      IF(v_count > 0)
+      THEN
+        RETURN;
+      END IF;
+
+      UPDATE VOLUNTEERS
+        SET f_personID=p_personid,
+            contactConsent=p_consent,
+            spk_spanish = p_span,
+            phone = p_phon,
+            email = v_emal,
+            f_affiliation_id = p_affi,
+            specialty = p_spec,
+            languages = p_lang,
+            gradyear = p_gryr
+        WHERE volunteer_id = p_vol_id;
+
+        r_res:=1;
+    END upd_volunteer;
+
+    PROCEDURE del_volunteer
+    ( p_id IN volunteers.volunteer_id%type)
+    IS
+    BEGIN
+        DELETE FROM VOLUNTEERS WHERE volunteer_id=p_id;
+
+        DELETE FROM vol_info WHERE f_volunteer_id=p_id;
+        DELETE FROM schd_volunteers WHERE f_volunteer_id=p_id;
+    END del_volunteer;
+
+    PROCEDURE get_volunteer
+    ( p_id IN volunteers.Volunteer_id%type,
+      r_res OUT SYS_REFCURSOR)
+    IS
+    BEGIN
+      OPEN r_res FOR
+        SELECT * FROM
+          VOLUNTEERS_vw
+          WHERE volunteer_id=p_id;
+    END;
+    
+    PROCEDURE get_volunteer_by_email
+    ( p_em IN volunteers.email%type,
+      r_res OUT SYS_REFCURSOR)
+    IS
+    BEGIN
+      OPEN r_res FOR
+        SELECT *
+          FROM volunteers_vw
+          WHERE Upper(email)=Upper(trim(p_em));
+    END;
+    
+    
+    PROCEDURE get_volunteer_auto_lname
+    ( p_part IN VOLUNTEERS_VW.LNAME%type,
+      r_res OUT SYS_REFCURSOR)
+    IS
+    BEGIN
+      OPEN r_res FOR
+      Select fname,
+      lname,
+      phone,
+      volunteer_id,
+      email
+      From VOLUNTEERS_VW
+      where (UPPER(lname)like UPPER(p_part)||'%')
+             AND rowNum < 10;    
+    END;
+    
+    PROCEDURE get_volunteer_auto_fname
+    ( p_part IN VOLUNTEERS_VW.FNAME%type,
+      r_res OUT SYS_REFCURSOR)
+    IS
+    BEGIN
+      OPEN r_res FOR
+      Select fname,
+      lname,
+      phone,
+      volunteer_id,
+      email
+      From VOLUNTEERS_VW
+      where (UPPER(fname)like UPPER(p_part)||'%')
+             AND rowNum < 10;    
+    END;
+    
+    
+
+
+
+
+    PROCEDURE get_hsc_user
+    ( p_id IN hsc.sd_hsc_directory.hscid%type,
+      r_res OUT SYS_REFCURSOR)
+    IS
+    BEGIN
+    OPEN r_res FOR
+        SELECT a.first_name,
+               a.last_name,
+               a.email_id,
+               a.Area_code,
+               a.phone,
+               b.cohort as grad_year,
+               a.person_id
+        FROM hsc.SD_HSC_DIRECTORY a
+        left join baninst1.transcript_students_v@mprod b
+        ON b.ID=a.usfid
+        WHERE hscid=p_id;
+    END;
+
+
+   PROCEDURE upd_schd_designation
+   ( p_sch_id IN schd_designations.f_schedule_id%type,
+     p_desig IN schd_designations.f_designation_id%type,
+     p_limit IN schd_designations.limit%type,
+      r_res OUT NUMBER)
+   IS
+     v_count NUMBER NOT NULL DEFAULT 0;
+   BEGIN
+    r_res:=0;
+
+    SELECT COUNT(*) into v_Count
+      FROM schd_designations
+      WHERE f_schedule_id=p_sch_id
+      AND f_designation_id = p_desig;
+
+    if(v_count > 0)
+    THEN
+      UPDATE schd_designations
+         SET limit=p_limit
+         WHERE f_schedule_id=p_sch_id
+         AND f_designation_id = p_desig;
+      r_res:=1;
+    ELSE
+      INSERT INTO schd_designations (f_schedule_id,f_designation_id,limit)
+      VALUES (p_sch_id,p_desig,p_limit);
+      r_res:=1;
+    END IF;
+   END;
+
+
+   PROCEDURE get_affiliations
+   ( r_res OUT SYS_REFCURSOR)
+   IS
+   BEGIN
+     OPEN r_res FOR
+        SELECT *
+        FROM AFFILIATIONS;
+   END;
+
+
+    PROCEDURE get_VOLUNTEERS
+    ( r_res OUT SYS_REFCURSOR)
+    IS
+    BEGIN
+      OPEN r_res FOR
+        SELECT * FROM volunteers_vw
+        ORDER BY volunteers_vw.affiliation;
+    END;
+
+
+    PROCEDURE ins_designation2
+    ( p_fname IN designations.full_name%type,
+      p_vlim IN designations.vlimit%type,
+      p_gdes IN designations.group_desc%type,
+      r_id OUT designations.designations_id%type)
+    IS
+    BEGIN
+        INSERT INTO designations
+         (designations_id,
+          full_name,
+          vlimit,
+          group_desc)
+         VALUES (designation_id_seq.nextval,
+                 p_fname,
+                 p_vlim,
+                 p_gdes);
+        SELECT designation_id_seq.currval
+          INTO r_id
+          FROM dual;
+    END ins_designation2;
+
+    PROCEDURE del_designation2
+    ( p_id IN designations.designations_id%type)
+    IS
+    BEGIN
+        DELETE FROM designations
+         WHERE designations_id=p_id;
+    end del_designation2;
+
+    PROCEDURE sel_designations2
+    ( r_res OUT SYS_REFCURSOR)
+    IS
+    BEGIN
+      OPEN r_res FOR
+        SELECT * FROM designations;
+    END sel_designations2;
+
+    PROCEDURE upd_designation2
+    ( p_id IN designations.designations_id%type,
+      p_fnam IN designations.full_name%type,
+      p_vlim IN designations.vlimit%type,
+      p_gdes IN designations.group_desc%type,
+      r_res OUT NUMBER)
+    IS
+    BEGIN
+      r_res:=0;
+      UPDATE designations
+        Set full_name=p_fnam,
+            vlimit = p_vlim,
+            group_desc = p_gdes
+        WHERE designations_id=p_id;
+      r_res:=1;
+    END upd_designation2;
+
+    PROCEDURE get_designation2
+    ( p_id IN designations.designations_id%type,
+      r_res OUT SYS_REFCURSOR)
+    IS
+    BEGIN
+      OPEN r_res FOR
+        SELECT * FROM designations
+        WHERE designations_id=p_id;
+    END get_designation2;
+
+
+
+    PROCEDURE ins_affiliation2
+    ( p_fname IN affiliations.full_name%type,
+      p_abr IN affiliations.abreviation%type,
+      r_res OUT affiliations.affiliation_id%type)
+    IS
+    BEGIN
+      INSERT INTO Affiliations
+         (affiliation_id,
+          full_name,
+          abreviation)
+        VALUES (affiliation_id_seq.nextVal,
+                p_fname,
+                p_abr);
+       SELECT affiliation_id_seq.CURRVAL
+         INTO r_res
+         FROM dual;
+    END ins_affiliation2;
+
+    PROCEDURE del_affiliation2
+    ( p_id IN affiliations.affiliation_id%type )
+    IS
+    BEGIN
+      DELETE FROM affiliations
+      WHERE affiliation_id = p_id;
+    END del_affiliation2;
+
+    PROCEDURE upd_affiliation2
+    ( p_id IN affiliations.affiliation_id%type,
+      p_na IN affiliations.full_name%type,
+      p_ab IN affiliations.abreviation%type,
+      r_res OUT NUMBER)
+    IS
+    BEGIN
+      r_res:=0;
+      UPDATE affiliations
+        set full_name=p_na,
+            abreviation=p_ab
+        WHERE affiliation_id=p_id;
+      r_res:=1;
+    END upd_affiliation2;
+
+    PROCEDURE sel_affiliations2
+    ( r_res OUT SYS_REFCURSOR)
+    IS
+    BEGIN
+     OPEN r_res FOR
+      SELECT affiliation_id,full_name,abreviation
+      FROM affiliations
+      WHERE affiliation_id is not NULL;
+    END sel_affiliations2;
+
+    PROCEDURE get_affiliation2
+    ( p_id IN affiliations.affiliation_id%type,
+      r_res OUT SYS_REFCURSOR)
+    IS
+    BEGIN
+      OPEN r_res FOR
+        SELECT * FROM Affiliations
+        WHERE affiliation_id=p_id;
+    END get_affiliation2;
+
+
+
+
+    PROCEDURE ins_aff_to_des2
+    ( p_faid IN aff_to_des.f_affiliation_id%type,
+      p_fdid IN aff_to_des.f_designation_id%type,
+      p_year IN aff_to_des.years%type,
+      r_res OUT aff_to_des.aff_to_des_id%type)
+    IS
+    BEGIN
+      INSERT INTO aff_to_des (aff_to_des_id,f_affiliation_id,f_designation_id,years)
+      Values(aff_to_des_id_seq.NEXTVAL,p_faid,p_fdid,p_year);
+
+      SELECT aff_to_des_id_seq.CURRVAL
+      INTO r_res
+      FROM dual;
+    END;
+
+    PROCEDURE upd_aff_to_des2
+    ( p_id IN aff_to_des.aff_to_des_id%type,
+      p_faid IN aff_to_des.f_affiliation_id%type,
+      p_fdid IN aff_to_des.f_designation_id%type,
+      p_year IN aff_to_des.years%type,
+      r_res OUT NUMBER)
+    IS
+    BEGIN
+      r_res:=0;
+      UPDATE aff_to_des
+        SET f_affiliation_id=p_faid,
+            f_designation_id=p_fdid,
+            years=p_year
+       WHERE aff_to_des_id=p_id;
+
+      r_res:=1;
+    END;
+
+    PROCEDURE del_aff_to_des2
+    ( p_id IN aff_to_des.aff_to_des_id%type)
+    IS
+    BEGIN
+      DELETE FROM aff_to_des
+      WHERE aff_to_des_id = p_id;
+    END;
+
+    PROCEDURE sel_aff_to_des2
+    ( r_res OUT SYS_REFCURSOR)
+    IS
+    BEGIN
+      OPEN r_res FOR
+        SELECT aff_to_des_id,f_affiliation_id,f_designation_id,years
+         FROM aff_to_des
+         WHERE aff_to_des_id is NOT NULL
+         ORDER BY f_affiliation_id;
+    END;
+
+    PROCEDURE get_aff_to_des2
+    ( p_id IN aff_to_des.aff_to_des_id%type,
+      r_res OUT SYS_REFCURSOR)
+    IS
+    BEGIN
+      OPEN r_res FOR
+        SELECT aff_to_des_id,f_affiliation_id,f_designation_id,years
+         FROM aff_to_des
+         WHERE aff_to_des_id = p_id;
+    END;
+
+
+    PROCEDURE get_limit_designation
+    ( p_schd_id IN schedule.schedule_id%type,
+      p_desid IN schd_designations.f_designation_id%type,
+      r_res OUT schd_designations.limit%type)
+    IS
+      v_tmp NUMBER NOT NULL DEFAULT 0;
+    BEGIN
+      SELECT COUNT(*) INTO v_tmp FROM schd_designations
+      WHERE f_schedule_id=p_schd_id and f_designation_id=p_desid;
+
+      --default to returning zero if no entry found. Rather than erroring
+      if(v_tmp< 1)
+      THEN
+        r_res:= 0;
+        return;
+      END IF;
+
+      SELECT limit into r_res FROM schd_designations
+      WHERE f_schedule_id=p_schd_id and f_designation_id=p_desid;
+    END;
+
+    PROCEDURE sel_med_designation
+    ( p_schd_id IN schedule.schedule_id%type,
+      p_desid IN schd_volunteers.f_designation_id%type,
+      r_volunteers OUT SYS_REFCURSOR)
+    IS
+    BEGIN
+
+    OPEN r_volunteers FOR
+       SELECT f_volunteer_id,
+              fname,
+              lname,
+              gradyear,
+              spanish
+       FROM schd_volunteers
+       INNER Join volunteers_vw
+       ON schd_volunteers.f_volunteer_id=volunteers_vw.volunteer_id
+       WHERE f_schedule_id = p_schd_id and f_designation_id=p_desid
+       ORDER BY schd_volunteers.schd_volunteer_id;
+
+
+    END sel_med_designation;
+    
+    PROCEDURE sel_substitute
+    ( p_schd_id IN schd_cancelations.f_schedule_id%type,
+      p_vol_id IN schd_cancelations.f_volunteer_id%type,
+      r_substitute OUT SYS_REFCURSOR)
+    IS
+    BEGIN
+
+    OPEN r_substitute FOR
+       SELECT alt_fname,
+              alt_lname
+       FROM schd_cancelations
+       WHERE f_schedule_id = p_schd_id and f_volunteer_id=p_vol_id;
+
+    END sel_substitute;
+
+
+    PROCEDURE sel_user_designations
+    ( p_year IN aff_to_des.years%type,
+      p_aff IN aff_to_des.f_affiliation_id%type,
+      r_res OUT SYS_REFCURSOR)
+    IS
+    BEGIN
+      OPEN r_res FOR
+        SELECT f_designation_id FROM aff_to_des
+          WHERE (years=p_year or years = 0 or years is null) and f_affiliation_id=p_aff;
+    END;
+
+    PROCEDURE sel_user_person_ID
+    ( p_vol_id IN volunteers.volunteer_id%type,
+      r_res OUT volunteers.f_personid%type)
+    IS
+      v_count NUMBER NOT NULL Default 0;
+    BEGIN
+      r_res:= '';
+      SELECT COUNT(*) INTO v_count
+        FROM volunteers
+        WHERE volunteer_id = p_vol_id
+          and f_personid is not null;
+      if(v_count > 0)
+      THEN
+        SELECT f_personid INTO r_res
+        FROM volunteers WHERE volunteer_id = p_vol_id;
+      END IF;
+    END sel_user_person_ID;
+
+
+    PROCEDURE ins_cancel_date
+    ( p_schd_id IN schd_cancelations.f_schedule_id%type,
+      p_vol_id IN schd_cancelations.f_volunteer_id%type,
+      p_fname IN schd_cancelations.alt_fname%type,
+      p_lname IN schd_cancelations.alt_lname%type,
+      p_phone IN schd_cancelations.alt_phone%type,
+      p_substitude_id IN schd_cancelations.f_substitute_id%type,
+      r_res OUT schd_cancelations.schd_cancelations_id%type)
+    IS
+        v_time date;
+        v_count NUMBER NOT NULL DEFAULT 0;
+        v_schd_time schedule.scheddate%type;
+        cursor v_users_cur
+        is
+         SELECT email_id,first_name,last_name
+         from hsc.sd_hsc_directory
+         WHERE person_id in (select f_person_id FROM users where users.role = 30);
+        v_email hsc.sd_hsc_directory.email_id%type;
+        v_fname hsc.sd_hsc_directory.first_name%type;
+        v_lname hsc.sd_hsc_directory.last_name%type;
+        v_msg utl_smtp.connection;
+        v_v_email volunteers_vw.email%type;
+        v_v_fname volunteers_vw.fname%type;
+        v_v_lname volunteers_vw.lname%type;
+        v_v_des designations.full_name%type;
+        v_des_lim schd_designations.limit%type;
+        v_des_count NUMBER;
+        v_desid designations.designations_id%type;
+        v_affid affiliations.affiliation_id%type;
+        v_v_aff volunteers_vw.affiliation%type;
+        v_v_year volunteers_vw.gradyear%type;
+        cursor v_vols_cur
+        is
+           SELECT email,fname,lname,affiliation,gradyear
+           FROM volunteers_vw
+           WHERE CONTACTCONSENT = 1;
+        v_vols_cur2 SYS_REFCURSOR;
+        v_years SYS_REFCURSOR;
+        v_year aff_to_des.years%type;
+        v_year_srch varchar2(200);
+        v_e_count number;
+        --v_year_search varchar2;
+    BEGIN
+        r_res:=0;
+
+        --verify that the volunteer was scheduled, otherwise abort.
+        SELECT COUNT(*) INTO v_count FROM schd_volunteers
+        WHERE schd_volunteers.f_schedule_id = p_schd_id
+          AND schd_volunteers.f_volunteer_id = p_vol_id;
+        if(v_count < 1)
+        THEN
+            RETURN;
+        END IF;
+
+        --get current date.
+        SELECT trunc(SYSDATE) INTO v_time FROM dual;
+
+        --get the designation of the position being cancelled
+        select f_designation_id INTO v_desid
+        FROM schd_volunteers
+        WHERE f_volunteer_id=p_vol_id and
+           f_schedule_id = p_schd_id;
+
+        --check if within 48 hours, if so, then send admin an e-mail.
+        SELECT trunc(schedDate) INTO v_schd_time FROM schedule where schedule_id=p_schd_id;
+
+        if(v_time > v_schd_time)
+        THEN
+          r_res:='001';
+          return;
+        END IF;
+
+        --if (trunc(to_number(substr((v_schd_time - v_time),1,instr(v_schd_time-v_time,' '))))< 2)
+        if((v_schd_time - v_time)<=2)
+        THEN
+          --get designation name
+          SELECT full_name INTO v_v_des
+          FROM designations
+          WHERE designations_id=v_desid;
+          --get first and last name of volunteer cancelling
+          SELECT fname,lname INTO v_v_fname,v_v_lname
+          FROM volunteers_vw
+          WHERE volunteers_vw.volunteer_id = p_vol_id;
+
+          --iterate through all admin positions to e-mail them.
+          if(is_on_production() = 1)
+          THEN
+            --send email to each admin user
+            OPEN v_users_cur;
+            LOOP
+              Fetch v_users_cur INTO v_email,v_fname,v_lname;
+              Exit WHEN v_users_cur%NOTFOUND;
+
+              v_msg := hsc.hit_util.open_mail(c_email_from,
+                                         v_email,
+                                         'Volunteer Cancelled within 2 days of clinic');
+              hsc.hit_util.write_mail(v_msg,c_msg_dnr);
+              hsc.hit_util.write_mail(v_msg,'Dear '||v_fname||' '||v_lname||','||UTL_TCP.CRLF||UTL_TCP.CRLF);
+              hsc.hit_util.write_mail(v_msg,'  Volunteer '||v_v_fname||' '||v_v_lname||' has cancelled as '||v_v_des||' for Bridge Clinic on '||to_char(v_schd_time,'Day, Month DD, YYYY.'));
+              hsc.hit_util.write_mail(v_msg,UTL_TCP.CRLF||UTL_TCP.CRLF||'  The volunteer named '||p_fname||' '||p_lname||' as an alternate volunteer reachable at '||p_phone||'.');
+              hsc.hit_util.write_mail(v_msg,UTL_TCP.CRLF||UTL_TCP.CRLF||'Thank You'||UTL_TCP.CRLF||'Bridge Clinic Admin');
+              hsc.hit_util.close_mail(v_msg);
+            END LOOP;
+          ELSE
+            --send e-mail to admin with list of people that would receive the message.
+            v_msg := hsc.hit_util.open_mail(c_email_from,
+                                   c_admin_email,
+                                   'Volunteer Cancelled within 2 days of clinic');
+            hsc.hit_util.write_mail(v_msg,'FROM DB '||hsc.hit_util.get_local_dbinstance||UTL_TCP.CRLF);
+            hsc.hit_util.write_mail(v_msg,'  The following e-mail would be sent to admins listed below because a volunteer cancelled within 48 hours of clinic.'||UTL_TCP.CRLF||UTL_TCP.CRLF);
+            hsc.hit_util.write_mail(v_msg,c_msg_dnr);
+            hsc.hit_util.write_mail(v_msg,'Dear fname lname,'||UTL_TCP.CRLF||UTL_TCP.CRLF);
+            hsc.hit_util.write_mail(v_msg,'  Volunteer '||v_v_fname||' '||v_v_lname||' has cancelled as '||v_v_des||' for Bridge Clinic on '||to_char(v_schd_time,'Day, Month DD, YYYY.'));
+            hsc.hit_util.write_mail(v_msg,UTL_TCP.CRLF||UTL_TCP.CRLF||'  The volunteer named '||p_fname||' '||p_lname||' as an alternate volunteer reachable at '||p_phone||'.');
+            hsc.hit_util.write_mail(v_msg,UTL_TCP.CRLF||UTL_TCP.CRLF||'Thank You'||UTL_TCP.CRLF||'Bridge Clinic Admin');
+            hsc.hit_util.write_mail(v_msg,UTL_TCP.CRLF||UTL_TCP.CRLF||'Recipients:');
+            v_e_count := 0;
+            OPEN v_users_cur;
+            LOOP
+              Fetch v_users_cur INTO v_email,v_fname,v_lname;
+              Exit WHEN v_users_cur%NOTFOUND;
+              hsc.hit_util.write_mail(v_msg,UTL_TCP.CRLF||v_fname||'  '||v_lname||' : '||v_email);
+              v_e_count := v_e_count + 1;
+            END LOOP;
+            if(v_e_count > 0)
+            THEN
+              hsc.hit_util.close_mail(v_msg);
+            end if;
+          END IF;
+        END IF;
+        v_email := null;
+        --Email alternate if one is listed, otherwise, mass e-mail everyone else.
+        email_alternate(p_sched_id=>p_schd_id, p_vol_id=>p_vol_id);
+
+        --get count of other volunteers in this designation
+        SELECT count(*) into v_des_count
+          FROM schd_volunteers
+          Where f_schedule_id=p_schd_id
+            and schd_volunteers.f_designation_id=v_desid;
+        --get the limit for this scheduled event
+        SELECT limit INTO v_des_lim
+        FROM schd_designations
+        WHERE f_schedule_id = p_schd_id
+          and schd_designations.f_designation_id=v_desid;
+
+        --get the affiliation for the designation
+        SELECT distinct f_affiliation_id INTO v_affid
+        FROM aff_to_des
+        WHERE f_designation_id=v_desid
+         and rownum = 1;
+
+        --insert the log message
+        INSERT INTO schd_cancelations
+        ( schd_cancelations_id,
+          f_schedule_id,
+          f_volunteer_id,
+          alt_fname,
+          alt_lname,
+          alt_phone,
+          F_substitute_id,
+          time_logged)
+        VALUES (schd_cancelations_id_seq.NEXTVAL,
+                p_schd_id,
+                p_vol_id,
+                p_fname,
+                p_lname,
+                replace(p_phone,'-',''),
+                p_substitude_id,
+                sysdate);
+
+        --delete the scheduled volunteer
+        DELETE FROM schd_volunteers
+          WHERE schd_volunteers.f_schedule_id = p_schd_id
+           AND schd_volunteers.f_volunteer_id = p_vol_id;
+
+        --return the cancelation primary key entry.
+        SELECT schd_cancelations_id_seq.CURRVAL
+          INTO r_res FROM dual;
+
+    END ins_cancel_date;
+
+    PROCEDURE is_vol_scheduled
+    ( p_vol_id IN schd_volunteers.f_volunteer_id%type,
+      p_sch_id IN schd_volunteers.f_schedule_id%type,
+      r_res OUT NUMBER)
+    IS
+      v_date schedule.scheddate%type;
+      v_count NUMBER;
+    BEGIN
+      r_res:=0;
+
+      SELECT scheddate INTO v_date FROM schedule
+      WHERE schedule.schedule_id= p_sch_id;
+
+      for parent_rec in (SELECT schedule_id
+                             FROM schedule
+                             WHERE scheddate=v_date)
+
+        --loop through all of the same date,
+        --looking for volunteer. if exists, exit with 1. else 0
+        LOOP
+            select COUNT(*) into v_count
+              FROM schd_volunteers
+              WHERE f_schedule_id = parent_rec.schedule_id
+                and schd_volunteers.f_volunteer_id=p_vol_id;
+
+            if(v_count > 0)
+            THEN
+              r_res:=1;
+              return;
+            END IF;
+        END LOOP;
+    END;
+
+    PROCEDURE get_grad_years
+    (p_des IN Designations.designations_id%type,
+     r_res OUT SYS_REFCURSOR)
+    IS
+    BEGIN
+      OPEN r_res FOR
+        SELECT years FROM aff_to_des
+        WHERE aff_to_des.f_designation_id = p_des;
+    END;
+
+    PROCEDURE sel_sched_vol_by_des
+    ( p_sched_id IN schd_volunteers.f_schedule_id%type,
+      p_des_id IN schd_volunteers.f_designation_id%type,
+      r_res OUT SYS_REFCURSOR)
+    IS
+    BEGIN
+      OPEN r_res FOR
+        SELECT b.volunteer_id,
+               b.fname,
+               b.lname,
+               b.email,
+               b.phone,
+               b.specialty,
+               b.gradyear,
+               b.affiliation
+        FROM schd_volunteers a,
+             volunteers_vw b
+        WHERE a.f_volunteer_id = b.volunteer_id
+          AND f_schedule_id = p_sched_id
+          AND f_designation_id = p_des_id
+          ORDER BY a.schd_volunteer_id;
+   END;
+
+   procedure sel_avail_volunteers_for_des (
+   p_schd_id IN schedule.schedule_id%type,
+     p_des IN designations.designations_id%type,
+     p_nam IN STRING,
+     r_res OUT SYS_REFCURSOR)
+   IS
+     v_date date;
+   BEGIN
+      SELECT schedDate INTO v_date
+       FROM schedule
+       WHERE schedule_id=p_schd_id;
+
+      OPEN r_res FOR
+        SELECT v.fname,
+               v.lname,
+               v.volunteer_id,
+               v.gradyear,
+               v.affiliation
+        FROM volunteers_vw v,
+        (SELECT f_volunteer_ID
+         FROM schd_volunteers a,
+           (SELECT schedule_id
+            FROM schedule
+            where schedule.scheddate=v_date) b
+            WHERE a.f_schedule_id = b.schedule_id) S
+         WHERE v.volunteer_id=s.f_volunteer_id (+)
+           AND s.f_volunteer_id is NULL
+           AND v.affiliation IN (select distinct f_affiliation_id from aff_to_des
+                                 where f_designation_id = p_des)
+           AND (lower(v.fname) like lower(p_nam)||'%' or
+                 lower(v.lname) like lower(p_nam)||'%')
+           AND rownum < 11;
+   END;
+
+   PROCEDURE sel_avail_volunteers
+   ( p_schd_id IN schedule.schedule_id%type,
+     p_nam IN STRING,
+     r_res OUT SYS_REFCURSOR)
+   IS
+     v_date date;
+   BEGIN
+      SELECT schedDate INTO v_date
+       FROM schedule
+       WHERE schedule_id=p_schd_id;
+
+      OPEN r_res FOR
+        SELECT v.fname,
+               v.lname,
+               v.volunteer_id,
+               v.gradyear
+        FROM volunteers_vw v,
+        (SELECT f_volunteer_ID
+         FROM schd_volunteers a,
+           (SELECT schedule_id
+            FROM schedule
+            where schedule.scheddate=v_date) b
+            WHERE a.f_schedule_id = b.schedule_id) S
+         WHERE v.volunteer_id=s.f_volunteer_id (+)
+           AND s.f_volunteer_id is NULL
+           AND (lower(v.fname) like lower(p_nam)||'%' or
+                 lower(v.lname) like lower(p_nam)||'%')
+           AND rownum < 11;
+   END sel_avail_volunteers;
+
+   PROCEDURE srch_avail_volunteers_for_des
+   ( p_schd_id IN schedule.schedule_id%type,
+     p_des IN designations.designations_id%type,
+     p_nam IN STRING,
+     r_res OUT SYS_REFCURSOR)
+   IS
+     v_schd_date Date;
+   BEGIN
+        SELECT schedDate INTO v_schd_date
+          FROM schedule
+          WHERE schedule_id=p_schd_id;
+
+        --check if will need volunteers
+         OPEN r_res FOR
+              SELECT v.fname,v.lname,v.volunteer_id,v.gradyear, v.affiliation
+              FROM volunteers_vw v,
+                (SELECT get_grad_year2(p_des,years) as years
+                 FROM aff_to_des
+                 WHERE f_designation_id=p_des) y,
+                (SELECT f_volunteer_ID
+                 FROM schd_volunteers a,
+                  (SELECT schedule_id
+                   FROM schedule
+                   where schedule.scheddate=v_schd_date) b
+                 WHERE a.f_schedule_id = b.schedule_id) s
+              WHERE v.volunteer_id=s.f_volunteer_id (+)
+                AND s.f_volunteer_id is null
+                AND v.affiliation IN (SELECT distinct f_affiliation_id
+                                      FROM aff_to_des
+                                      WHERE f_designation_id=p_des)
+                AND v.gradyear =y.years
+                AND (lower(v.fname) like lower(p_nam)||'%' or
+                    lower(v.lname) like lower(p_nam)||'%')
+                AND rownum < 11;
+       END srch_avail_volunteers_for_des;
+
+
+
+   PROCEDURE sel_avail_coord_for_aff
+   ( p_schd_id IN schedule.schedule_id%type,
+     p_aff IN affiliations.affiliation_id%type,
+     p_nam IN STRING,
+     r_res OUT SYS_REFCURSOR)
+   IS
+    --cursor v_cur is sel_vol_for_schedule_night(p_schd_id);
+    v_schd_date schedule.scheddate%type;
+   BEGIN
+
+     SELECT schedDate INTO v_schd_date
+       FROM schedule
+       WHERE schedule_id=p_schd_id;
+
+     OPEN r_res FOR
+        SELECT fname,
+               lname,
+               volunteer_id,
+               gradyear
+        FROM volunteers_vw v,
+          (SELECT f_volunteer_ID
+           FROM schd_volunteers a,
+             (SELECT schedule_id
+              FROM schedule
+              WHERE schedule.scheddate= v_schd_date) b
+           WHERE a.f_schedule_id = b.schedule_id) s
+        WHERE v.volunteer_id=s.f_volunteer_id (+)
+          AND s.f_Volunteer_id is null
+          AND v.Volunteer_id in (select f_volunteer_id FROM coord_des)
+          AND v.affiliation = p_aff
+          AND (lower(v.fname) like lower(p_nam)||'%' or
+                 lower(v.lname) like lower(p_nam)||'%')
+          AND rownum < 11;
+
+
+   end sel_avail_coord_for_aff;
+
+   PROCEDURE sel_vol_for_schedule_night
+   ( p_sched_id IN schedule.schedule_id%type,
+     r_res OUT SYS_REFCURSOR)
+   IS
+   BEGIN
+     OPEN r_res FOR
+       SELECT f_volunteer_ID
+         FROM schd_volunteers
+         WHERE f_schedule_id in
+           (SELECT schedule_id
+            FROM schedule
+            where schedule.scheddate=(SELECT schedDate
+                                      FROM schedule
+                                      WHERE schedule_id=p_sched_id));
+   END sel_vol_for_schedule_night;
+
+  FUNCTION get_grad_year2
+  ( p_des IN designations.designations_id%type,
+    p_year IN aff_to_des.years%type)
+    RETURN volunteers_vw.gradYear%type
+  IS
+    v_year number;
+    v_month number;
+    v_day number;
+  BEGIN
+    v_year := extract(year FROM SYSDATE);
+    v_month := extract(month FROM SYSDATE);
+    v_day := extract(day FROM  SYSDATE);
+
+    --This gets the current year.
+    if(v_month > 5 or (v_month =5 and v_day > 5))
+    THEN
+        v_year := v_year + 1;
+    END IF;
+
+    v_year := v_year + (4 - p_year);
+
+    return v_year;
+  end get_grad_year2;
+
+  function get_search_string_grad_year
+  ( p_des Varchar2)
+  RETURN varchar2
+  IS
+    v_year number;
+    v_month number;
+    v_day number;
+    v_ret varchar(20);
+  BEGIN
+    select extract(year FROM SYSDATE) INTO v_year FROM DUAL;
+    select extract(month FROM SYSDATE) INTO v_month FROM DUAL;
+    select extract(day FROM sysDate) INTO v_day FROM DUAL;
+
+    --This gets the current year.
+    if(v_month > 5 or (v_month =5 and v_day > 5))
+    THEN
+        v_year := v_year + 1;
+    END IF;
+
+    if(p_des = c_m12std_des)
+    THEN
+      return 'and (gradyear='||v_year+3||' or gradyear='||v_year+2||')';
+    END IF;
+
+    IF(p_des = c_m34std_des)
+    THEN
+      return 'and (gradyear='||v_year+1||' or gradyear='||v_year||')';
+    END IF;
+
+    if(p_des = c_p12std_des)
+    THEN
+      return 'and (gradyear='||v_year+2||' or gradyear='||v_year+1||')';
+    END IF;
+
+    IF(p_des = c_p23std_des)
+    THEN
+      return 'and (gradyear = '||v_year+1||' or gradyear='||v_year||')';
+    END IF;
+
+    return '';
+  END get_search_string_grad_year;
+
+  function get_grad_year
+  ( p_year number,
+    p_aff Varchar2)
+  RETURN NUMBER
+  IS
+    v_year NUMBER;--variable to store the current year to consider, depending on may.
+    v_month NUMBER;
+    v_day NUMBER;
+    v_ret NUMBER;
+  BEGIN
+    select extract(year FROM SYSDATE) INTO v_year FROM DUAL;
+    select extract(month FROM SYSDATE) INTO v_month FROM DUAL;
+    select extract(day FROM sysDate) INTO v_day FROM DUAL;
+
+    --This gets the current year.
+    if(v_month > 5 or (v_month =5 and v_day > 5))
+    THEN
+        v_year := v_year + 1;
+    END IF;
+
+    if(p_aff = c_medical_student)
+    THEN
+        v_ret := 4 - (p_year - v_year);
+        if(v_ret < 0)
+        THEN
+          v_ret:=0;
+        end if;
+        if(v_ret > 5)
+        THEN
+          v_ret:=5;
+        end if;
+        return v_ret;
+    END IF;
+
+    IF(p_aff = c_Physical_student)
+    THEN
+        v_ret:= 3-(p_year - v_year);
+        if(v_ret < 0)
+        THEN
+          v_ret:=0;
+        end if;
+        if(v_ret > 3)
+        THEN
+          v_ret:=5;
+        END if;
+        return v_ret;
+    END IF;
+
+     v_ret:= 4-(p_year - v_year);
+     if(v_ret < 0)
+     THEN
+       v_ret:=0;
+     end if;
+     if(v_ret > 4)
+     THEN
+       v_ret:=5;
+     end if;
+
+    RETURN v_ret;
+  END get_grad_year;
+
+
+    PROCEDURE ins_coord_des
+    ( p_vol_id IN coord_des.f_volunteer_id%type,
+      p_des_id IN coord_des.f_designation_id%type)
+    IS
+      v_personID volunteers.f_personid%type;
+      v_affiliation volunteers.f_affiliation_id%type;
+      v_role users.role%type;
+      v_check NUMBER;
+      v_des_id coord_des.f_designation_id%type;
+    BEGIN
+      
+      v_des_id := p_des_id;
+      if p_des_id = c_pharmacy_student then
+        v_des_id := '00';
+      end if;
+      
+      INSERT INTO coord_des (f_volunteer_id,f_designation_id)
+      VALUES (p_vol_id,v_des_id);
+
+      SELECT f_personID,f_affiliation_id INTO v_personID,v_affiliation
+      FROM volunteers where volunteer_id = p_vol_id;
+      
+      if p_des_id = c_pharmacy_student then
+        v_role := c_PHARMCoord_role;
+      else
+        SELECT COUNT(*) INTO v_check
+        FROM aff_to_role
+        WHERE f_designation_id=v_affiliation;
+
+        if(v_check<1)
+        THEN
+          v_role :=10;
+        ELSE
+          SELECT f_role INTO v_role
+          FROM aff_to_role
+          WHERE f_designation_id=v_affiliation;
+        END IF;        
+      end if;
+
+      --add to users as coordinator if not already a user.
+      DELETE FROM USERS
+      WHERE f_person_id = v_personID;
+
+      INSERT INTO USERS (f_person_id,role)
+      VALUES(v_personID,v_role);
+
+    END ins_coord_des;
+
+    PROCEDURE del_coord_des
+    ( p_vol_id IN coord_des.f_volunteer_id%type,
+      p_des_id IN coord_des.f_designation_id%type)
+    IS
+    BEGIN
+      DELETE FROM coord_des
+       WHERE f_volunteer_id = p_vol_id
+       AND f_designation_id = p_des_id;
+    END;
+
+    PROCEDURE del_coord_des_user
+    ( p_vol_id IN coord_des.f_volunteer_id%type)
+    IS
+      v_personID volunteers.f_personid%type;
+      v_check NUMBER;
+    BEGIN
+      DELETE FROM coord_des
+        WHERE f_volunteer_id = p_vol_id;
+
+      SELECT COUNT(*) INTO v_check FROM volunteers
+      WHERE volunteer_id=p_vol_id
+        AND volunteers.f_personid is not null;
+
+      if(v_check > 0)
+      THEN
+        SELECT f_personid INTO v_personID
+        FROM volunteers WHERE volunteer_id = p_vol_id
+          AND f_personID is not null;
+
+        SELECT COUNT(*) INTO v_check
+        FROM users WHERE f_person_id = v_personID;
+
+        if(v_check > 0)
+        THEN
+          DELETE FROM USERS
+          WHERE f_person_id = v_personID;
+        END IF;
+      END IF;
+    END;
+
+    PROCEDURE sel_coord_des_for_vol
+    ( p_vol_id IN coord_des.f_volunteer_id%type,
+      r_res OUT SYS_REFCURSOR)
+    IS
+    BEGIN
+      OPEN r_res FOR
+        SELECT f_designation_id FROM coord_Des
+        WHERE f_volunteer_id = p_vol_id;
+    END sel_coord_des_for_vol;
+
+    PROCEDURE sel_coord_vol_for_desc
+    ( p_des IN STRING,
+      r_res OUT SYS_REFCURSOR)
+    IS
+    BEGIN
+
+      IF(p_des = 'md')
+      THEN
+        OPEN r_res FOR
+          SELECT DISTINCT f_volunteer_id
+            FROM coord_des
+            WHERE (f_designation_id = c_MOCoord_des or
+                   f_designation_id = c_MPCoord_des or
+                   f_designation_id = c_MSCoord_des);
+        RETURN;
+      END IF;
+
+      IF(p_des = 'pt')
+      THEN
+        OPEN r_res FOR
+          SELECT DISTINCT f_volunteer_id
+          FROM coord_des
+          WHERE f_designation_id = c_PTCoord_des;
+        RETURN;
+      END IF;
+
+      IF(p_des = 'sw')
+      THEN
+        OPEN r_res FOR
+          SELECT DISTINCT f_volunteer_id
+          FROM coord_des
+          WHERE f_designation_id = c_SWCoord_des;
+        RETURN;
+      END IF;
+
+      if(p_des = 'ph')
+      THEN
+        OPEN r_res FOR
+          SELECT DISTINCT f_volunteer_id
+          FROM coord_des
+          WHERE f_designation_id= c_PHCoord_des;
+        RETURN;
+      END IF;
+    END;
+
+    PROCEDURE sel_coord_vol_for_aff
+    (  p_aff_csv IN VARCHAR2,
+      r_res OUT SYS_RefCURSOR)
+    IS
+    BEGIN
+      if p_aff_csv = c_pharmacy_student then --making an exception for pharmacy as anyone in any affiliation can be a pharmacy coordinator
+        open r_res for 
+          SELECT volunteer_id as f_volunteer_id
+              FROM coord_des,volunteers, users
+              WHERE volunteers.volunteer_id=coord_des.f_volunteer_id
+                AND users.f_person_id = volunteers.f_personid
+                AND users.role = c_PHARMCoord_role; --constrain down on users in the pharmacy coordinator role
+      else
+        OPEN r_res FOR
+          SELECT volunteers.volunteer_id as f_volunteer_id
+            FROM coord_des,volunteers, users
+            WHERE volunteers.volunteer_id=f_volunteer_id
+              AND volunteers.f_affiliation_id IN (select column_value from table(hsc.hit_util.list_to_rows(p_aff_csv)))
+              AND users.f_person_id = volunteers.f_personid
+              AND users.role <> c_PHARMCoord_role;
+      end if;
+    END sel_coord_vol_for_aff;
+
+
+    PROCEDURE sel_stud_not_coord_with_aff
+    ( p_aff IN volunteers_vw.affiliation%type,
+      r_res OUT SYS_REFCURSOR )
+    IS
+    BEGIN
+      OPEN r_res FOR
+        SELECT volunteer_id,
+               lname,
+               fname,
+               gradyear
+          FROM volunteers_vw
+          WHERE affiliation = p_aff
+            AND volunteer_id not in (SELECT f_volunteer_id FROM coord_des);
+    END;
+
+    PROCEDURE srch_stud_not_coord_with_aff
+    ( p_srch IN volunteers_vw.fname%type,
+      p_aff IN volunteers_vw.affiliation%type,
+      r_res OUT SYS_REFCURSOR )
+    IS
+    BEGIN
+      OPEN r_res FOR
+        SELECT v.volunteer_id,
+               v.lname,
+               v.fname,
+               v.gradyear
+          FROM volunteers_vw v,
+               (select f_volunteer_id FROM coord_des) c,
+               (SELECT volunteer_id,f_personId FROM volunteers) p
+          WHERE v.volunteer_id = c.f_volunteer_id (+)
+            AND v.volunteer_id = p.volunteer_id (+)
+            AND c.f_volunteer_id is null
+            AND p.f_personID is not null
+            AND (p_aff is null or v.affiliation = p_aff) --if null is passed for p_aff, search all volunteer affiliations
+            AND (UPPER(fname) like UPPER(p_srch)||'%' or
+                 UPPER(lname) like UPPER(p_srch)||'%')
+            AND rownum<11;
+    END;
+
+
+    PROCEDURE send_mail_test
+    (r_res OUT NUMBER)
+    IS
+      v_connect utl_smtp.connection;
+    BEGIN
+      r_res:=0;
+
+      v_connect := hsc.hit_util.open_mail(c_email_from,
+                                          c_admin_email,
+                                          'hello');
+      hsc.hit_util.write_mail(v_connect,'my message   '||hsc.hit_util.get_local_dbinstance);
+      if(is_on_production() =1)
+      THEN
+        hsc.hit_util.write_mail(v_connect,UTL_TCP.CRLF||'on production');
+      ELSE
+        hsc.hit_util.write_mail(v_connect,UTL_TCP.CRLF||'on test environment');
+      END IF;
+
+      hsc.hit_util.close_mail(v_connect);
+
+      r_res:=1;
+    END;
+
+    FUNCTION is_on_production
+    RETURN number
+    IS
+    BEGIN
+      RETURN hsc.hit_util.is_on_production();
+   END is_on_production;
+
+
+    PROCEDURE send_mail_schd_volunteers_day
+    IS
+     -- v_sched_vol cursor;
+     v_fname volunteers_vw.fname%type;
+     v_lname volunteers_vw.lname%type;
+     v_email volunteers_vw.email%type;
+     v_msg utl_smtp.connection;
+     v_e_count number;
+
+     cursor v_volunteers_cur IS
+       SELECT v.fname, v.lname, v.email
+       FROM volunteers_vw v,
+           (SELECT f_volunteer_id,f_schedule_id
+            FROM schd_volunteers) sv,
+           (SELECT schedule_id
+            FROM schedule
+            WHERE schedDate = trunc(sysdate+1)) S
+       WHERE sv.f_schedule_id = S.schedule_id
+         AND v.volunteer_id = sv.f_volunteer_id;
+    BEGIN
+      IF(is_on_production()=1)
+      THEN
+          --email everyone scheduled for the next day an e-mail notification.
+          OPEN v_volunteers_cur;
+          LOOP
+            FETCH v_volunteers_cur INTO v_fname, v_lname, v_email;
+            Exit WHEN v_volunteers_cur%NOTFOUND;
+            
+            v_msg := hsc.hit_util.open_mail2(c_email_from,
+                                        v_email,
+                                        'Scheduled Volunteer Day',
+                                        null,
+                                        c_admin_email);
+            hsc.hit_util.write_mail(v_msg,c_msg_dnr);
+            hsc.hit_util.write_mail(v_msg,'Dear '||v_fname||' '||v_lname||','||UTL_TCP.CRLF||UTL_TCP.CRLF);
+            hsc.hit_util.write_mail(v_msg,'  This is a reminder that you are scheduled as a volunteer at Bridge Clinic tomorrow, '||to_char(trunc(SYSDATE+1),'Day, Month DD, YYYY.'));
+            hsc.hit_util.write_mail(v_msg,UTL_TCP.CRLF||UTL_TCP.CRLF||'Thank You');
+            hsc.hit_util.close_mail(v_msg);
+          END LOOP;
+      ELSE
+          --email list of people to admin e-mails
+          v_msg := hsc.hit_util.open_mail(c_email_from,
+                                          c_admin_email,
+                                          'Scheduled Volunteer Day');
+          hsc.hit_util.write_mail(v_msg,'FROM DB '||hsc.hit_util.get_local_dbinstance||UTL_TCP.CRLF);
+          hsc.hit_util.write_mail(v_msg,'The following people would receive this e-mail notification about being secheduled for the next day.'||UTL_TCP.CRLF);
+          hsc.hit_util.write_mail(v_msg,c_msg_dnr);
+          hsc.hit_util.write_mail(v_msg,'Dear fname lname,'||UTL_TCP.CRLF||UTL_TCP.CRLF);
+          hsc.hit_util.write_mail(v_msg,'  This is a reminder that you are scheduled as a volunteer at Bridge Clinic tomorrow, '||to_char(trunc(SYSDATE+1),'Day, Month DD, YYYY.'));
+          hsc.hit_util.write_mail(v_msg,UTL_TCP.CRLF||UTL_TCP.CRLF||'Thank You'||UTL_TCP.CRLF||UTL_TCP.CRLF||'Recipients:');
+           v_e_count := 0;
+          OPEN v_volunteers_cur;
+          LOOP
+            FETCH v_volunteers_cur INTO v_fname, v_lname, v_email;
+            EXIT WHEN v_volunteers_cur%NOTFOUND;
+            hsc.hit_util.write_mail(v_msg,UTL_TCP.CRLF||v_fname||'  '||v_lname||' : '||v_email);
+            v_e_count := v_e_count + 1;
+          END LOOP;
+          hsc.hit_util.write_mail(v_msg,UTL_TCP.CRLF||'That is all.  -Developer');
+          if v_e_count > 0
+          THEN
+            hsc.hit_util.close_mail(v_msg);
+          end if;
+      END IF;
+    END;
+
+    PROCEDURE send_mail_schd_volunteers_week
+    IS
+     -- v_sched_vol cursor;
+     v_fname volunteers_vw.fname%type;
+     v_lname volunteers_vw.lname%type;
+     v_email volunteers_vw.email%type;
+     v_msg utl_smtp.connection;
+     v_e_count number;
+
+     cursor v_volunteers_cur IS
+       SELECT v.fname, v.lname, v.email
+       FROM volunteers_vw v,
+            (SELECT f_volunteer_id,f_schedule_id
+             FROM schd_volunteers) sv,
+            (SELECT schedule_id
+             FROM schedule
+             WHERE schedDate = trunc(sysdate+7)) S
+       WHERE sv.f_schedule_id = S.schedule_id
+         AND v.volunteer_id = sv.f_volunteer_id;
+    BEGIN
+      IF(is_on_PRODUCTION()=1)
+      THEN
+        OPEN v_volunteers_cur;
+        LOOP
+          FETCH v_volunteers_cur INTO v_fname, v_lname, v_email;
+          Exit WHEN v_volunteers_cur%NOTFOUND;
+
+          v_msg := hsc.hit_util.open_mail(c_email_from,
+                                        v_email,
+                                        'Scheduled Volunteer Week');
+          hsc.hit_util.write_mail(v_msg,c_msg_dnr);
+          hsc.hit_util.write_mail(v_msg,'Dear '||v_fname||' '||v_lname||','||UTL_TCP.CRLF||UTL_TCP.CRLF);
+          hsc.hit_util.write_mail(v_msg,'  This is a reminder that you are scheduled as a volunteer at Bridge Clinic in one week on '||to_char(trunc(SYSDATE+7),'Day, Month DD, YYYY.'));
+          hsc.hit_util.write_mail(v_msg,UTL_TCP.CRLF||UTL_TCP.CRLF||'Thank You');
+          hsc.hit_util.close_mail(v_msg);
+        END LOOP;
+      ELSE
+        --EMAIL AN ADMIN THE PEOPLE THAT WOULD RECEIVE THE E-MAIL
+        v_msg:= hsc.hit_util.open_mail(c_email_from,
+                                       c_admin_email,
+                                       'Scheduled Volunteer Week');
+        hsc.hit_util.write_mail(v_msg,'FROM DB '||hsc.hit_util.get_local_dbinstance||UTL_TCP.CRLF);
+        hsc.hit_util.write_mail(v_msg,'The following people would receive this notification that they are scheduled in one week.  The message Follows:'||UTL_TCP.CRLF||UTL_TCP.CRLF);
+        hsc.hit_util.write_mail(v_msg,c_msg_dnr);
+        hsc.hit_util.write_mail(v_msg,'Dear fname lname,'||UTL_TCP.CRLF||UTL_TCP.CRLF);
+        hsc.hit_util.write_mail(v_msg,'  This is a reminder that you are scheduled as a volunteer at Bridge Clinic in one week on '||to_char(trunc(SYSDATE+7),'Day, Month DD, YYYY.'));
+        hsc.hit_util.write_mail(v_msg,UTL_TCP.CRLF||UTL_TCP.CRLF||'Thank You'||UTL_TCP.CRLF||UTL_TCP.CRLF||'Recipients:');
+        v_e_count :=0;
+        OPEN v_volunteers_cur;
+        LOOP
+          FETCH v_volunteers_cur INTO v_fname, v_lname, v_email;
+          EXIT WHEN v_volunteers_cur%NOTFOUND;
+          hsc.hit_util.write_mail(v_msg,UTL_TCP.CRLF||v_fname||' '||v_lname||' : '||v_email);
+          v_e_count := v_e_count + 1;
+        END LOOP;
+        hsc.hit_util.write_mail(v_msg,UTL_TCP.CRLF||'That is all.  -Developer');
+        if v_e_count > 0
+        THEN
+          hsc.hit_util.close_mail(v_msg);
+        end if;
+      END IF;
+    END;
+
+    PROCEDURE send_mail_Admin_empty_slots
+    (r_res OUT NUMBER)
+    IS
+     v_limit schd_designations.limit%type;
+     v_schdid schd_designations.f_schedule_id%type;
+     v_desid schd_designations.f_designation_id%type;
+     v_count Number;
+     v_desname designations.full_name%type;
+     v_email hsc.sd_hsc_directory.email_id%type;
+     v_msg utl_smtp.connection;
+     v_vol_list VARCHAR2(2000);
+     v_fname hsc.sd_hsc_directory.first_name%type;
+     v_lname hsc.sd_hsc_directory.last_name%type;
+     v_num NUMBER;
+     v_e_count Number;
+     
+     cursor v_volunteers_cur IS
+       with
+         mdates
+       as (SELECT schedule_id from schedule where scheddate = trunc(sysdate+2))
+       SELECT limit,f_designation_id,f_schedule_id,(select count(*)
+                 from schd_volunteers,schd_designations
+                 where schd_volunteers.f_schedule_id in (select schedule_id FROM mdates)
+                 and schd_designations.f_schedule_id in (select schedule_id FROM mdates)
+                 and schd_volunteers.f_designation_id = schd_designations.f_designation_id) mcount
+       FROM schd_designations
+       WHERE f_schedule_id in (select schedule_id FROM mdates)
+       and limit > (select count(*)
+                 from schd_volunteers,schd_designations
+                 where schd_volunteers.f_schedule_id in (select schedule_id FROM mdates)
+                 and schd_designations.f_schedule_id in (select schedule_id FROM mdates)
+                 and schd_volunteers.f_designation_id = schd_designations.f_designation_id)
+       ORDER BY f_schedule_id;
+     cursor v_users_cur IS
+       SELECT email_id,first_name,last_name
+       FROM hsc.sd_hsc_directory
+       WHERE person_id in (SELECT f_person_id FROM USERS WHERE role > 30);
+    BEGIN
+      r_res:= 0;
+
+      v_vol_list := 'Volunteer Designation (number Volunteered)/(limit)';
+      OPEN v_volunteers_cur;
+      LOOP
+        FETCH v_volunteers_cur INTO v_limit, v_desid, v_schdid,v_count;
+        Exit WHEN v_volunteers_cur%NOTFOUND;
+        SELECT designations.full_name
+          INTO v_desname
+          From designations
+          WHERE designations.designations_id=v_desid;
+        r_res:=r_res+1;
+        v_vol_list := v_vol_list||UTL_TCP.CRLF||v_desname||' '|| v_count||'/'||v_limit||'.';
+      END LOOP;
+
+      if(r_res < 1)
+      THEN
+        return;
+      end if;
+
+      IF(is_on_production()= 1)
+      THEN
+        Open v_users_cur;
+        LOOP
+          FETCH v_users_cur INTO v_email,v_fname,v_lname;
+          Exit when v_users_cur%NOTFOUND;
+          v_msg := hsc.hit_util.open_mail(c_email_from,
+                                       v_email,
+                                       'Needed Volunteers in 2 days');
+          hsc.hit_util.write_mail(v_msg,c_msg_dnr);
+          hsc.hit_util.write_mail(v_msg,'Dear '||v_fname||' '||v_lname||','||UTL_TCP.CRLF||UTL_TCP.CRLF);
+          hsc.hit_util.write_mail(v_msg,'  This is to inform you of the volunteer slots waiting to be filled for Bridge Clinic on '||to_char(trunc(SYSDATE+2),'Day, Month d, YYYY.'));
+          hsc.hit_util.write_mail(v_msg,UTL_TCP.CRLF||UTL_TCP.CRLF||v_vol_list);
+          hsc.hit_util.write_mail(v_msg,UTL_TCP.CRLF||'Thank You'||UTL_TCP.CRLF||'Bridge Clinic Admin');
+          hsc.hit_util.close_mail(v_msg);
+        END LOOP;
+      ELSE
+        v_msg:= hsc.hit_util.open_mail(c_email_from,
+                                       c_admin_email,
+                                       'Needed Volunteers in 2 days');
+        hsc.hit_util.write_mail(v_msg,'FROM DB '||hsc.hit_util.get_local_dbinstance||UTL_TCP.CRLF);
+        hsc.hit_util.write_mail(v_msg,'This notification goes to adminstrators to indicate empty slots that need to be filled 2 days before the event.'||UTL_TCP.CRLF||'Recipients:');
+        v_e_count := 0;
+        OPEN v_users_cur;
+        LOOP
+          FETCH v_users_cur INTO v_email,v_fname,v_lname;
+          EXIT WHEN v_users_cur%NOTFOUND;
+          hsc.hit_util.write_mail(v_msg,UTL_TCP.CRLF||v_fname||' '||v_lname||' : '||v_email);
+          v_e_count := v_e_count + 1;
+        END LOOP;
+        hsc.hit_util.write_mail(v_msg,UTL_TCP.CRLF||UTL_TCP.CRLF||'MSG:'||UTL_TCP.CRLF);
+        hsc.hit_util.write_mail(v_msg,c_msg_dnr);
+        hsc.hit_util.write_mail(v_msg,'Dear fname lname,'||UTL_TCP.CRLF||UTL_TCP.CRLF);
+        hsc.hit_util.write_mail(v_msg,'  This is to inform you of the volunteer slots waiting to be filled for Bridge Clinic on '||to_char(trunc(SYSDATE+2),'Day, Month d, YYYY.'));
+        hsc.hit_util.write_mail(v_msg,UTL_TCP.CRLF||UTL_TCP.CRLF||v_vol_list);
+        hsc.hit_util.write_mail(v_msg,UTL_TCP.CRLF||'Thank You'||UTL_TCP.CRLF||'Bridge Clinic Admin');
+        
+        if(v_e_count > 0)
+        THEN
+          hsc.hit_util.close_mail(v_msg);
+        end if;
+      END IF;
+
+    END;
+    
+    PROCEDURE form_auto_complete_user_id
+    ( p_part IN hsc.sd_hsc_directory.hscid%type,
+      r_res OUT SYS_REFCURSOR)
+    IS
+    BEGIN
+      OPEN r_res FOR
+        SELECT a.hscid,
+               a.first_name,
+               a.last_name,
+               a.person_id
+          FROM
+          hsc.sd_hsc_directory a, users b
+          WHERE a.person_id = b.f_person_id (+)
+            AND b.f_person_id is null
+            AND (UPPER(a.hscid) like UPPER(p_part)||'%' or
+                UPPER(a.first_name) like UPPER(p_part)||'%' or
+                UPPER(a.last_name) like UPPER(p_part)||'%')
+             AND rowNum < 10;
+    END;
+    
+    PROCEDURE is_coordinator
+    ( p_vol_id IN coord_des.f_volunteer_id%type,
+      r_res OUT NUMBER )
+    IS
+    BEGIN
+      SELECT count(*) into r_res
+      FROM coord_des WHERE f_volunteer_id = p_vol_id;
+
+    END;
+
+    PROCEDURE ins_userImport
+    ( p_lname IN temp_load2.lname%type,
+      p_fname IN temp_load2.fname%type,
+      p_email IN temp_load2.email%type,
+      p_phone IN temp_load2.phone%type,
+      p_aff IN temp_load2.affiliation%type,
+      p_grad IN temp_load2.gradyear%type,
+      p_spec IN temp_load2.specialty%type,
+      p_lang IN temp_load2.language%type,
+      p_span IN temp_load2.spanish%type,
+      p_und IN temp_load2.undergradyear%type)
+    IS
+    BEGIN
+      INSERT INTO temp_load2 (lname,fname,email,phone,affiliation,gradyear,specialty,language,spanish,undergradyear)
+      VALUES (p_lname,p_fname,p_email,p_phone,p_aff,p_grad,p_spec,p_lang,p_span,p_und);
+    END;
+
+    PROCEDURE sel_userImport
+    ( r_res OUT SYS_REFCURSOR )
+    IS
+    BEGIN
+      OPEN r_res FOR
+        SELECT * from temp_load2;
+    END;
+
+    PROCEDURE upd_phone_import
+    ( p_phone IN temp_load2.phone%type,
+      p_email IN temp_load2.email%type)
+    IS
+    BEGIN
+      UPDATE temp_load2
+        SET phone = p_phone
+        WHERE email = p_email;
+    END;
+
+    PROCEDURE ins_personID_import
+    ( p_pid IN temp_load2.person_id%type,
+      p_email IN temp_load2.email%type)
+    IS
+    BEGIN
+      UPDATE temp_load2
+        SET person_id=p_pid
+        WHERE email=p_email;
+    END;
+
+    PROCEDURE get_personID_by_email
+    (p_email IN hsc.sd_hsc_directory.email_id%type,
+     r_pid OUT hsc.sd_hsc_directory.person_id%type)
+    IS
+      v_count NUMBER NOT NULL DEFAULT 0;
+    BEGIN
+      SELECT count(*) into v_count
+      FROM hsc.sd_hsc_directory
+      WHERE email_id=p_email;
+
+      if(v_count > 0 )
+      THEN
+          SELECT person_id INTO r_pid
+          FROM hsc.sd_hsc_directory
+          WHERE email_id=p_email
+          and rownum=1;
+      ELSE
+          r_pid := '';
+      END IF;
+    END;
+
+    PROCEDURE get_volunteers_page
+    ( p_start IN NUMBER,
+      p_end IN Number,
+      r_res OUT SYS_REFCURSOR)
+    IS
+    BEGIN
+       OPEN r_res FOR
+         SELECT * FROM ord_volunteers_vw
+         WHERE ord_volunteers_vw.rmum >=p_start and ord_volunteers_vw.rmum <=p_end;
+
+    END get_volunteers_page;
+
+    PROCEDURE get_volunteer_Count
+    ( r_res OUT NUMBER)
+    IS
+    BEGIN
+      SELECT count(*) into r_res FROM volunteers_vw;
+    END;
+
+    PROCEDURE get_aff_from_des
+    ( p_des IN aff_to_des.f_designation_id%type,
+      r_res OUT aff_to_des.f_affiliation_id%type)
+    IS
+    BEGIN
+      SELECT f_affiliation_id into r_res
+      FROM aff_to_des
+      WHERE f_designation_id=p_des and
+           rownum=1;
+    END;
+
+    PROCEDURE get_designation_name
+    ( p_des IN designations.designations_id%type,
+      r_res OUT designations.full_name%type)
+    IS
+    BEGIN
+      SELECT full_name into r_res
+      FROM designations
+      where designations_id=p_des;
+    END;
+END;
